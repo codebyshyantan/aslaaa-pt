@@ -1,0 +1,20 @@
+{
+  "name": "aslaaa-pt",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "bootstrap": "npm run bootstrap --workspace @aslaaa-pt/api",
+    "dev": "concurrently \"npm run dev --workspace @aslaaa-pt/api\" \"npm run dev --workspace @aslaaa-pt/web\"",
+    "dev:api": "npm run dev --workspace @aslaaa-pt/api",
+    "dev:web": "npm run dev --workspace @aslaaa-pt/web",
+    "build": "npm run build --workspace @aslaaa-pt/api && npm run build --workspace @aslaaa-pt/web",
+    "typecheck": "npm run typecheck --workspace @aslaaa-pt/api && npm run typecheck --workspace @aslaaa-pt/web",
+    "test": "npm run test --workspace @aslaaa-pt/api && npm run test --workspace @aslaaa-pt/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
