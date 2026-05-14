@@ -51,12 +51,12 @@ for each row
 execute function set_updated_at();
 
 alter table auto_merge_configs
-  alter column scrim_id type uuid using nullif(scrim_id, '')::uuid,
-  alter column favorite_merge_id type uuid using nullif(favorite_merge_id, '')::uuid;
+  alter column scrim_id type uuid using nullif(scrim_id, NULL)::uuid,
+  alter column favorite_merge_id type uuid using nullif(favorite_merge_id, NULL)::uuid;
 
 alter table daily_snapshots
-  alter column scrim_id type uuid using nullif(scrim_id, '')::uuid,
-  alter column merge_id type uuid using nullif(merge_id, '')::uuid;
+  alter column scrim_id type uuid using nullif(scrim_id, NULL)::uuid,
+  alter column merge_id type uuid using nullif(merge_id, NULL)::uuid;
 
 do $$
 begin
