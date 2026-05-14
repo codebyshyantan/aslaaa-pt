@@ -4,7 +4,7 @@ import { isPostgresUniqueViolation } from "../../persistence/postgres-errors.js"
 import type { CreateActivityLogInput } from "../activity/activity.types.js";
 import type { AuthenticatedRequestContext } from "../auth/auth.types.js";
 import type { ScrimsRepository } from "../scrims/scrims.repository.js";
-import type { AutomationRepository } from "./automation.repository.js";
+import { PointSystemStateConflictError, type AutomationRepository } from "./automation.repository.js";
 import type {
   CreateAutoMergeConfigBody,
   CreateDailySnapshotBody,
@@ -347,11 +347,32 @@ export class AutomationService {
     return this.repository.listDailySnapshots();
   }
 
-  async updatePointSystemSettings(payload: UpdatePointSystemBody) {
-    return this.repository.updatePointSystemSettings({
-      killPointValue: payload.killPointValue,
-      positionPoints: payload.positionPoints,
-    });
+  async updatePointSystemSettings(actor: AuthenticatedRequestContext, payload: UpdatePointSystemBody) {
+    try {
+      return await this.repository.updatePointSystemSettings({
+        expectedUpdatedAt: payload.expectedUpdatedAt,
+        killPointValue: payload.killPointValue,
+        positionPoints: payload.positionPoints,
+        updatedAt: this.now().toISOString(),
+        updatedByUserId: actor.user.id,
+        updatedByUsername: actor.user.username,
+      });
+    } catch (error) {
+      if (error instanceof PointSystemStateConflictError) {
+        throw new ApiError(
+          409,
+          "POINT_SYSTEM_STALE_STATE",
+          "Point system settings were updated by another user. Refresh before saving again.",
+          {
+            currentUpdatedAt: error.currentSettings.updatedAt,
+            expectedUpdatedAt: error.expectedUpdatedAt,
+            lastUpdatedByUsername: error.currentSettings.updatedByUsername,
+          },
+        );
+      }
+
+      throw error;
+    }
   }
 
   private async createRunRecord(input: {

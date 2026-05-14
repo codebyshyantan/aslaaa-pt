@@ -11,7 +11,9 @@ import { ApiClientError } from "@/lib/http-client";
 
 import {
   createUser,
+  deleteUser,
   fetchUsers,
+  resetUserPassword,
   updateUserStatus,
   type ManagedUserRecord,
 } from "./api/users-client";
@@ -78,6 +80,44 @@ export function UsersPage() {
     try {
       await updateUserStatus(user.id, !user.isActive);
       setStatusMessage(`User ${user.username} is now ${!user.isActive ? "active" : "inactive"}.`);
+      await loadUsers();
+    } catch (nextError) {
+      setError(formatUsersError(nextError));
+    }
+  }
+
+  async function handleResetPassword(user: ManagedUserRecord) {
+    const nextPassword = window.prompt(`Enter a new temporary password for ${user.username}.`);
+
+    if (!nextPassword) {
+      return;
+    }
+
+    setError(null);
+    setStatusMessage(null);
+
+    try {
+      await resetUserPassword(user.id, nextPassword);
+      setStatusMessage(`Password reset for ${user.username}. Existing sessions were revoked.`);
+      await loadUsers();
+    } catch (nextError) {
+      setError(formatUsersError(nextError));
+    }
+  }
+
+  async function handleDeleteUser(user: ManagedUserRecord) {
+    const confirmed = window.confirm(`Delete user ${user.username}? This will revoke access immediately.`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    setError(null);
+    setStatusMessage(null);
+
+    try {
+      await deleteUser(user.id);
+      setStatusMessage(`User ${user.username} deleted.`);
       await loadUsers();
     } catch (nextError) {
       setError(formatUsersError(nextError));
@@ -172,9 +212,17 @@ export function UsersPage() {
                       </span>
                     </div>
                   </div>
-                  <Button className="sm:w-auto" onClick={() => void handleToggleUser(user)} variant="secondary">
-                    {user.isActive ? "Disable" : "Enable"}
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button className="sm:w-auto" onClick={() => void handleToggleUser(user)} variant="secondary">
+                      {user.isActive ? "Disable" : "Enable"}
+                    </Button>
+                    <Button className="sm:w-auto" onClick={() => void handleResetPassword(user)} variant="secondary">
+                      Reset Password
+                    </Button>
+                    <Button className="sm:w-auto" onClick={() => void handleDeleteUser(user)} variant="secondary">
+                      Delete
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))

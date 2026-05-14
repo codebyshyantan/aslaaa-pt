@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { ApiError } from "../../../lib/http/api-error.js";
 import type { MergeSourceCollection } from "../../../contracts/competition-contract.js";
-import type { ScrimsRepository } from "../scrims.repository.js";
+import { LobbyStateConflictError, type ScrimsRepository } from "../scrims.repository.js";
 import type {
   CreateGroupInput,
   CreateLobbyInput,
@@ -82,6 +82,8 @@ export class MemoryScrimsRepository implements ScrimsRepository {
     const lobby: LobbyRecord = {
       ...input,
       id: randomUUID(),
+      lastUpdatedByUserId: null,
+      lastUpdatedByUsername: null,
     };
 
     this.lobbies.set(lobby.id, lobby);
@@ -152,6 +154,92 @@ export class MemoryScrimsRepository implements ScrimsRepository {
     };
 
     this.tiers.set(tier.id, tier);
+    return clone(tier);
+  }
+
+  async deleteGroup(id: string) {
+    const group = this.groups.get(id);
+
+    if (!group) {
+      return null;
+    }
+
+    const lobbyIds = [...this.lobbies.values()].filter((lobby) => lobby.groupId === id).map((lobby) => lobby.id);
+    for (const lobbyId of lobbyIds) {
+      await this.deleteLobby(lobbyId);
+    }
+
+    this.groups.delete(id);
+    return clone(group);
+  }
+
+  async deleteLobby(id: string) {
+    const lobby = this.lobbies.get(id);
+
+    if (!lobby) {
+      return null;
+    }
+
+    for (const [entryId, entry] of this.lobbyEntries.entries()) {
+      if (entry.lobbyId === id) {
+        this.lobbyEntries.delete(entryId);
+      }
+    }
+
+    for (const preset of this.mergePresets.values()) {
+      preset.lobbyIds = preset.lobbyIds.filter((lobbyId) => lobbyId !== id);
+      this.mergePresetLobbyIds.set(preset.id, preset.lobbyIds);
+    }
+
+    this.lobbies.delete(id);
+    return clone(lobby);
+  }
+
+  async deleteMergePreset(id: string) {
+    const preset = await this.findMergePresetById(id);
+
+    if (!preset) {
+      return null;
+    }
+
+    this.mergePresets.delete(id);
+    this.mergePresetLobbyIds.delete(id);
+    return preset;
+  }
+
+  async deleteScrim(id: string) {
+    const scrim = this.scrims.get(id);
+
+    if (!scrim) {
+      return null;
+    }
+
+    const tierIds = [...this.tiers.values()].filter((tier) => tier.scrimId === id).map((tier) => tier.id);
+    for (const tierId of tierIds) {
+      await this.deleteTier(tierId);
+    }
+
+    for (const preset of [...this.mergePresets.values()].filter((preset) => preset.scrimId === id)) {
+      await this.deleteMergePreset(preset.id);
+    }
+
+    this.scrims.delete(id);
+    return clone(scrim);
+  }
+
+  async deleteTier(id: string) {
+    const tier = this.tiers.get(id);
+
+    if (!tier) {
+      return null;
+    }
+
+    const groupIds = [...this.groups.values()].filter((group) => group.tierId === id).map((group) => group.id);
+    for (const groupId of groupIds) {
+      await this.deleteGroup(groupId);
+    }
+
+    this.tiers.delete(id);
     return clone(tier);
   }
 
@@ -254,6 +342,16 @@ export class MemoryScrimsRepository implements ScrimsRepository {
   }
 
   async replaceLobbyEntries(input: ReplaceLobbyEntriesInput) {
+    const lobby = this.lobbies.get(input.lobbyId);
+
+    if (!lobby) {
+      throw new Error("Lobby not found during update.");
+    }
+
+    if (input.expectedUpdatedAt && lobby.updatedAt !== input.expectedUpdatedAt) {
+      throw new LobbyStateConflictError(clone(lobby), input.expectedUpdatedAt);
+    }
+
     for (const [entryId, entry] of this.lobbyEntries.entries()) {
       if (entry.lobbyId === input.lobbyId) {
         this.lobbyEntries.delete(entryId);
@@ -270,7 +368,75 @@ export class MemoryScrimsRepository implements ScrimsRepository {
       this.lobbyEntries.set(entry.id, entry);
     }
 
-    return nextEntries.map(clone);
+    lobby.lastUpdatedByUserId = input.lastUpdatedByUserId;
+    lobby.lastUpdatedByUsername = input.lastUpdatedByUsername;
+    lobby.updatedAt = input.nextUpdatedAt;
+
+    return {
+      entries: nextEntries.map(clone),
+      lobby: clone(lobby),
+    };
+  }
+
+  async updateGroupName(id: string, name: string, updatedAt: string) {
+    const group = this.groups.get(id);
+
+    if (!group) {
+      return null;
+    }
+
+    group.name = name;
+    group.updatedAt = updatedAt;
+    return clone(group);
+  }
+
+  async updateLobbyName(id: string, name: string, updatedAt: string) {
+    const lobby = this.lobbies.get(id);
+
+    if (!lobby) {
+      return null;
+    }
+
+    lobby.name = name;
+    lobby.updatedAt = updatedAt;
+    return clone(lobby);
+  }
+
+  async updateMergePresetName(id: string, name: string, updatedAt: string) {
+    const preset = this.mergePresets.get(id);
+
+    if (!preset) {
+      return null;
+    }
+
+    preset.name = name;
+    preset.updatedAt = updatedAt;
+    return clone(preset);
+  }
+
+  async updateScrim(id: string, name: string, slug: string, updatedAt: string) {
+    const scrim = this.scrims.get(id);
+
+    if (!scrim) {
+      return null;
+    }
+
+    scrim.name = name;
+    scrim.slug = slug;
+    scrim.updatedAt = updatedAt;
+    return clone(scrim);
+  }
+
+  async updateTierName(id: string, name: string, updatedAt: string) {
+    const tier = this.tiers.get(id);
+
+    if (!tier) {
+      return null;
+    }
+
+    tier.name = name;
+    tier.updatedAt = updatedAt;
+    return clone(tier);
   }
 
   private getLobbyIdsForScrim(scrimId: string) {

@@ -298,6 +298,34 @@ export class PostgresAuthRepository implements AuthRepository {
     return toManagedUserRecord(row);
   }
 
+  async deleteUser(userId: string): Promise<ManagedUserRecord | null> {
+    const [row] = await this.sql<PostgresUserRow[]>`
+      delete from users
+      where id = ${userId}
+      returning id, username, role, password_hash, is_active, created_at, updated_at, last_login_at
+    `;
+
+    return row ? toManagedUserRecord(row) : null;
+  }
+
+  async updateUserPassword(userId: string, passwordHash: string, updatedAt: string): Promise<ManagedUserRecord | null> {
+    return this.sql.begin(async (transaction) => {
+      await transaction`
+        delete from sessions
+        where user_id = ${userId}
+      `;
+
+      const [row] = await transaction<PostgresUserRow[]>`
+        update users
+        set password_hash = ${passwordHash}, updated_at = ${updatedAt}
+        where id = ${userId}
+        returning id, username, role, password_hash, is_active, created_at, updated_at, last_login_at
+      `;
+
+      return row ? toManagedUserRecord(row) : null;
+    });
+  }
+
   async updateUserStatus(userId: string, isActive: boolean, updatedAt: string): Promise<ManagedUserRecord | null> {
     const [row] = await this.sql<PostgresUserRow[]>`
       update users

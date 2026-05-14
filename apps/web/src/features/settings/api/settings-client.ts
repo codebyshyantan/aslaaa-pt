@@ -36,12 +36,18 @@ export interface AutomationRunRecord {
 
 export interface AutoMergeExecutionPlan {
   config: AutoMergeConfigRecord;
-  pointSystem: PointSystemSettings;
+  pointSystem: PointSystemSettingsRecord;
   resetArchitecture: Array<{
     detail: string;
     step: number;
     title: string;
   }>;
+}
+
+export interface PointSystemSettingsRecord extends PointSystemSettings {
+  updatedAt: string;
+  updatedByUserId: string | null;
+  updatedByUsername: string | null;
 }
 
 export interface AutoMergeExecutionResult {
@@ -106,13 +112,13 @@ export function createDailySnapshot(payload: {
 }
 
 export function fetchPointSystemSettings() {
-  return apiRequest<PointSystemSettings>("/auto-merge/point-system", {
+  return apiRequest<PointSystemSettingsRecord>("/auto-merge/point-system", {
     method: "GET",
   });
 }
 
-export function updatePointSystemSettings(payload: PointSystemSettings) {
-  return apiRequest<PointSystemSettings>("/auto-merge/point-system", {
+export function updatePointSystemSettings(payload: PointSystemSettings & { expectedUpdatedAt: string | null }) {
+  return apiRequest<PointSystemSettingsRecord>("/auto-merge/point-system", {
     body: JSON.stringify(payload),
     method: "PUT",
   });

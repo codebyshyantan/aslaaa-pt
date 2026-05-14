@@ -9,6 +9,18 @@ export interface AutoMergeConfigRecord {
   scrimId: string;
 }
 
+export interface FeaturedLeaderboardConfigRecord {
+  mergeId: string | null;
+  scrimId: string | null;
+  sortBy: "chickenDinners" | "kills" | "matchesPlayed" | "totalPoints";
+  tierId: string | null;
+  title: string;
+  updatedAt: string;
+  updatedByUserId: string | null;
+  updatedByUsername: string | null;
+  week: string | null;
+}
+
 export interface DailySnapshotRecord {
   createdAt: string;
   date: string;
@@ -30,6 +42,12 @@ export interface AutomationRunRecord {
   snapshotId: string | null;
   status: "COMPLETED" | "FAILED" | "SKIPPED";
   summaryJson: Record<string, unknown>;
+}
+
+export interface PointSystemSettingsRecord extends PointSystemSettings {
+  updatedAt: string;
+  updatedByUserId: string | null;
+  updatedByUsername: string | null;
 }
 
 export interface CreateAutoMergeConfigInput {
@@ -61,9 +79,28 @@ export interface CreateAutomationRunInput {
   summaryJson: Record<string, unknown>;
 }
 
+export interface UpdatePointSystemSettingsInput extends PointSystemSettings {
+  expectedUpdatedAt: string | null;
+  updatedAt: string;
+  updatedByUserId: string | null;
+  updatedByUsername: string | null;
+}
+
+export interface UpdateFeaturedLeaderboardConfigInput {
+  mergeId: string | null;
+  scrimId: string | null;
+  sortBy: FeaturedLeaderboardConfigRecord["sortBy"];
+  tierId: string | null;
+  title: string;
+  updatedAt: string;
+  updatedByUserId: string | null;
+  updatedByUsername: string | null;
+  week: string | null;
+}
+
 export interface AutoMergeExecutionPlan {
   config: AutoMergeConfigRecord;
-  pointSystem: PointSystemSettings;
+  pointSystem: PointSystemSettingsRecord;
   resetArchitecture: Array<{
     detail: string;
     step: number;

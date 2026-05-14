@@ -19,6 +19,8 @@
 
 - HTTPS enabled
 - `COOKIE_SECURE=true`
+- `CORS_ORIGIN` or `CORS_ORIGINS` include the deployed Vercel frontend origin
+- backend runs with `NODE_ENV=production` so session cookies are issued with `SameSite=None; Secure`
 - PostgreSQL backups configured
 - request logs collected
 - migrations applied in order

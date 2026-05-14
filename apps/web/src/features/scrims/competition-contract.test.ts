@@ -13,6 +13,7 @@ describe("competition-contract", () => {
     );
 
     expect(standings[0]?.teamName).toBe("Team Bravo");
+    expect(standings[0]?.chickenDinners).toBe(1);
     expect(standings[0]?.totalPoints).toBe(16);
     expect(standings[1]?.teamName).toBe("Team Alpha");
   });
@@ -35,6 +36,7 @@ describe("competition-contract", () => {
     );
 
     expect(standings).toHaveLength(1);
+    expect(standings[0]?.chickenDinners).toBe(1);
     expect(standings[0]?.matchesPlayed).toBe(2);
     expect(standings[0]?.kills).toBe(6);
     expect(standings[0]?.totalPoints).toBe(33);

@@ -11,6 +11,7 @@ export interface EditableLobbyEntryInput {
 }
 
 export interface RankedLobbyEntry extends EditableLobbyEntryInput {
+  chickenDinners: number;
   lobbyIds: string[];
   lobbyNames: string[];
   matchesPlayed: number;
@@ -86,6 +87,7 @@ export function buildLobbyStandings(
       const teamName = sanitizeCompetitionTeamName(entry.teamName);
 
       return {
+        chickenDinners: entry.position === 1 ? 1 : 0,
         kills: entry.kills,
         lobbyIds: source ? [source.lobbyId] : [],
         lobbyNames: source ? [source.lobbyName] : [],
@@ -127,6 +129,7 @@ export function mergeStandings(collections: MergeSourceCollection[], settings: P
         continue;
       }
 
+      existing.chickenDinners += entry.chickenDinners;
       existing.kills += entry.kills;
       existing.placementPoints += entry.placementPoints;
       existing.totalPoints += entry.totalPoints;

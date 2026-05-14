@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { ApiError } from "../../../lib/http/api-error.js";
 import { defaultPointSystemSettings, type PointSystemSettings } from "../../../contracts/competition-contract.js";
-import type { AutomationRepository } from "../automation.repository.js";
+import { PointSystemStateConflictError, type AutomationRepository } from "../automation.repository.js";
 import type {
   AutomationRunRecord,
   AutoMergeConfigRecord,
@@ -10,13 +10,23 @@ import type {
   CreateAutomationRunInput,
   CreateDailySnapshotInput,
   DailySnapshotRecord,
+  FeaturedLeaderboardConfigRecord,
+  PointSystemSettingsRecord,
+  UpdateFeaturedLeaderboardConfigInput,
+  UpdatePointSystemSettingsInput,
 } from "../automation.types.js";
 
 export class MemoryAutomationRepository implements AutomationRepository {
   private readonly autoMergeConfigs = new Map<string, AutoMergeConfigRecord>();
   private readonly automationRuns = new Map<string, AutomationRunRecord>();
   private readonly dailySnapshots = new Map<string, DailySnapshotRecord>();
-  private pointSystemSettings: PointSystemSettings = structuredClone(defaultPointSystemSettings);
+  private featuredLeaderboardConfig: FeaturedLeaderboardConfigRecord | null = null;
+  private pointSystemSettings: PointSystemSettingsRecord = {
+    ...structuredClone(defaultPointSystemSettings),
+    updatedAt: new Date(0).toISOString(),
+    updatedByUserId: null,
+    updatedByUsername: null,
+  };
 
   async createAutoMergeConfig(input: CreateAutoMergeConfigInput) {
     for (const config of this.autoMergeConfigs.values()) {
@@ -83,6 +93,10 @@ export class MemoryAutomationRepository implements AutomationRepository {
     return config ? structuredClone(config) : null;
   }
 
+  async getFeaturedLeaderboardConfig() {
+    return this.featuredLeaderboardConfig ? structuredClone(this.featuredLeaderboardConfig) : null;
+  }
+
   async getPointSystemSettings() {
     return structuredClone(this.pointSystemSettings);
   }
@@ -105,8 +119,28 @@ export class MemoryAutomationRepository implements AutomationRepository {
       .map((snapshot) => structuredClone(snapshot));
   }
 
-  async updatePointSystemSettings(input: PointSystemSettings) {
-    this.pointSystemSettings = structuredClone(input);
+  async updateFeaturedLeaderboardConfig(input: UpdateFeaturedLeaderboardConfigInput) {
+    this.featuredLeaderboardConfig = structuredClone(input);
+    return structuredClone(input);
+  }
+
+  async updatePointSystemSettings(input: UpdatePointSystemSettingsInput) {
+    if (input.expectedUpdatedAt && this.pointSystemSettings.updatedAt !== input.expectedUpdatedAt) {
+      throw new PointSystemStateConflictError(structuredClone(this.pointSystemSettings), input.expectedUpdatedAt);
+    }
+
+    const normalized: PointSystemSettings = {
+      killPointValue: input.killPointValue,
+      positionPoints: [...input.positionPoints],
+    };
+
+    this.pointSystemSettings = {
+      ...structuredClone(normalized),
+      updatedAt: input.updatedAt,
+      updatedByUserId: input.updatedByUserId,
+      updatedByUsername: input.updatedByUsername,
+    };
+
     return structuredClone(this.pointSystemSettings);
   }
 }

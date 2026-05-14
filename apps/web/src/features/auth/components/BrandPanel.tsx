@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
+
 import { Activity, ShieldCheck, Sparkles, Trophy } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { Panel } from "@/components/ui/panel";
+import { fetchFeaturedLeaderboardOverview, type PublicLeaderboardOverview } from "@/features/tournaments/api/leaderboards-client";
 
 import { appName } from "../auth.types";
 
@@ -13,26 +16,28 @@ const highlights = [
     icon: ShieldCheck,
   },
   {
-    title: "Data Quality",
+    title: "Shared State Safety",
     description:
-      "Unique team normalization, duplicate detection, and Excel-ready export flows built for clean competitive data.",
+      "Conflict-safe lobby autosave, stale-state detection, and last-editor visibility support simultaneous PT operations.",
     icon: Activity,
   },
   {
-    title: "Automation Ready",
+    title: "Weekly Visibility",
     description:
-      "Favorite-merge resets, immutable daily snapshots, live scoring rules, and activity logging are built into the platform workflow.",
+      "Featured weekly leaderboards and recent archive highlights are published directly from immutable snapshot data.",
     icon: Sparkles,
   },
 ];
 
-const metrics = [
-  { label: "Core roles", value: "2" },
-  { label: "Admin utilities", value: "6" },
-  { label: "Export mode", value: "Excel" },
-];
-
 export function BrandPanel() {
+  const [overview, setOverview] = useState<PublicLeaderboardOverview | null>(null);
+
+  useEffect(() => {
+    void fetchFeaturedLeaderboardOverview().then(setOverview).catch(() => {
+      setOverview(null);
+    });
+  }, []);
+
   return (
     <motion.section
       animate={{ opacity: 1, y: 0 }}
@@ -54,7 +59,7 @@ export function BrandPanel() {
               {appName}
             </p>
             <p className="max-w-xl text-sm leading-7 text-slate-300 sm:text-base">
-              Private esports operations workspace for authentication, protected modules, live point tables, automation resets, team management, and historical reporting.
+              Private esports operations workspace for secure access, concurrent scoring, weekly leaderboard publishing, automation resets, and export-ready reporting.
             </p>
           </div>
 
@@ -75,13 +80,47 @@ export function BrandPanel() {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          {metrics.map((metric) => (
-            <Panel className="bg-black/18 p-4" key={metric.label}>
-              <p className="text-xs uppercase tracking-[0.22em] text-slate-400">{metric.label}</p>
-              <p className="mt-3 font-display text-3xl font-semibold text-white">{metric.value}</p>
-            </Panel>
-          ))}
+        <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+          <Panel className="bg-black/18 p-4">
+            <p className="text-xs uppercase tracking-[0.22em] text-slate-400">
+              {overview?.featured?.title ?? "Featured Weekly Leaderboard"}
+            </p>
+            <div className="mt-4 space-y-3">
+              {overview?.featured?.entries.length ? (
+                overview.featured.entries.slice(0, 5).map((entry) => (
+                  <div className="flex items-center justify-between gap-4 text-sm text-slate-200" key={entry.teamName}>
+                    <span>
+                      #{entry.rank} {entry.teamName}
+                    </span>
+                    <span>{entry.totalPoints} pts</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-slate-500">Featured leaderboard will appear after the first archived weekly snapshot.</p>
+              )}
+            </div>
+          </Panel>
+
+          <Panel className="bg-black/18 p-4">
+            <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Recent Scrim Highlights</p>
+            <div className="mt-4 space-y-3">
+              {overview?.recentHighlights.length ? (
+                overview.recentHighlights.map((highlight) => (
+                  <div className="rounded-2xl border border-white/8 bg-white/5 p-3" key={highlight.id}>
+                    <p className="text-sm font-semibold text-white">
+                      {highlight.scrimName} / {highlight.dayName}
+                    </p>
+                    <p className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">{highlight.date}</p>
+                    <p className="mt-2 text-sm text-slate-300">
+                      {highlight.topTeams.map((team) => `${team.teamName} (${team.totalPoints})`).join(", ")}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-slate-500">Recent archive highlights will appear here once snapshots are available.</p>
+              )}
+            </div>
+          </Panel>
         </div>
       </div>
     </motion.section>

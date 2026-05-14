@@ -6,6 +6,8 @@ import {
   type PropsWithChildren,
 } from "react";
 
+import { logAuthDiagnostic } from "@/lib/http-client";
+
 import { loginUser, logoutUser } from "../api/auth-client";
 import type { AuthSession, LoginFormValues } from "../auth.types";
 
@@ -35,6 +37,13 @@ export function AuthProvider({ children, initialSession }: AuthProviderProps) {
 
   useEffect(() => {
     const clearSession = () => {
+      if (session) {
+        logAuthDiagnostic("runtime-session-cleared", {
+          reason: "auth:unauthorized event received",
+          username: session.user.username,
+        });
+      }
+
       setSession(null);
       setStatus("ready");
     };
@@ -43,7 +52,7 @@ export function AuthProvider({ children, initialSession }: AuthProviderProps) {
     return () => {
       window.removeEventListener("auth:unauthorized", clearSession);
     };
-  }, []);
+  }, [session]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

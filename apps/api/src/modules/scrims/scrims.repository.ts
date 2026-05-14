@@ -18,6 +18,16 @@ import type {
   TierRecord,
 } from "./scrims.types.js";
 
+export class LobbyStateConflictError extends Error {
+  constructor(
+    public readonly currentLobby: LobbyRecord,
+    public readonly expectedUpdatedAt: string | null,
+  ) {
+    super("Lobby state conflict");
+    this.name = "LobbyStateConflictError";
+  }
+}
+
 export interface ScrimsRepository {
   clearLobbyEntriesForScrim(scrimId: string): Promise<void>;
   countEntriesForScrim(scrimId: string): Promise<number>;
@@ -26,6 +36,11 @@ export interface ScrimsRepository {
   createMergePreset(input: CreateMergePresetInput): Promise<MergePresetRecord>;
   createScrim(input: CreateScrimInput): Promise<ScrimRecord>;
   createTier(input: CreateTierInput): Promise<TierRecord>;
+  deleteGroup(id: string): Promise<GroupRecord | null>;
+  deleteLobby(id: string): Promise<LobbyRecord | null>;
+  deleteMergePreset(id: string): Promise<MergePresetRecord | null>;
+  deleteScrim(id: string): Promise<ScrimRecord | null>;
+  deleteTier(id: string): Promise<TierRecord | null>;
   findGroupById(id: string): Promise<GroupRecord | null>;
   findLobbyById(id: string): Promise<LobbyRecord | null>;
   findMergePresetById(id: string): Promise<MergePresetRecord | null>;
@@ -34,7 +49,15 @@ export interface ScrimsRepository {
   getMergeSourceCollectionsByLobbyIds(lobbyIds: string[]): Promise<MergeSourceCollectionsResult>;
   getMergeSourceCollectionsByPresetId(presetId: string): Promise<MergeSourceCollectionsResult>;
   listState(): Promise<ScrimsState>;
-  replaceLobbyEntries(input: ReplaceLobbyEntriesInput): Promise<ScrimsState["lobbyEntries"]>;
+  replaceLobbyEntries(input: ReplaceLobbyEntriesInput): Promise<{
+    entries: ScrimsState["lobbyEntries"];
+    lobby: LobbyRecord;
+  }>;
+  updateGroupName(id: string, name: string, updatedAt: string): Promise<GroupRecord | null>;
+  updateLobbyName(id: string, name: string, updatedAt: string): Promise<LobbyRecord | null>;
+  updateMergePresetName(id: string, name: string, updatedAt: string): Promise<MergePresetRecord | null>;
+  updateScrim(id: string, name: string, slug: string, updatedAt: string): Promise<ScrimRecord | null>;
+  updateTierName(id: string, name: string, updatedAt: string): Promise<TierRecord | null>;
 }
 
 export function createScrimsRepository(storageDriver: "memory" | "postgres", sql?: Sql) {

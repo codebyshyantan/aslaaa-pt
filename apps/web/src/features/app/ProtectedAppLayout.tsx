@@ -3,6 +3,7 @@ import { LogOut, Shield, TimerReset } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
+import { AppFooter } from "@/components/layout/AppFooter";
 import { Panel } from "@/components/ui/panel";
 import { appName, organizationName } from "@/features/auth/auth.types";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -108,6 +109,7 @@ export function ProtectedAppLayout() {
         </nav>
 
         <Outlet />
+        <AppFooter />
       </div>
     </main>
   );

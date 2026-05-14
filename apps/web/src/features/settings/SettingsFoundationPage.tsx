@@ -23,6 +23,7 @@ import {
   type AutoMergeExecutionPlan,
   type AutomationRunRecord,
   type DailySnapshotRecord,
+  type PointSystemSettingsRecord,
 } from "./api/settings-client";
 
 function formatSettingsError(error: unknown) {
@@ -52,6 +53,7 @@ export function SettingsFoundationPage() {
   });
   const [killPointValue, setKillPointValue] = useState(1);
   const [positionPoints, setPositionPoints] = useState<number[]>([]);
+  const [pointSystemMeta, setPointSystemMeta] = useState<PointSystemSettingsRecord | null>(null);
   const [configForm, setConfigForm] = useState({
     enabled: true,
     favoriteMergeId: "",
@@ -84,6 +86,7 @@ export function SettingsFoundationPage() {
       setScrimState(scrimsResponse);
       setKillPointValue(pointSystem.killPointValue);
       setPositionPoints(pointSystem.positionPoints);
+      setPointSystemMeta(pointSystem);
 
       setConfigForm((current) => ({
         ...current,
@@ -131,13 +134,20 @@ export function SettingsFoundationPage() {
 
     try {
       const nextSettings = await updatePointSystemSettings({
+        expectedUpdatedAt: pointSystemMeta?.updatedAt ?? null,
         killPointValue,
         positionPoints,
       });
       setKillPointValue(nextSettings.killPointValue);
       setPositionPoints(nextSettings.positionPoints);
+      setPointSystemMeta(nextSettings);
       setStatusMessage("Point system updated.");
     } catch (nextError) {
+      if (nextError instanceof ApiClientError && nextError.code === "POINT_SYSTEM_STALE_STATE") {
+        setStatusMessage("Point system changed on the server. The latest values were reloaded.");
+        await loadState();
+      }
+
       setError(formatSettingsError(nextError));
     }
   }
@@ -220,6 +230,12 @@ export function SettingsFoundationPage() {
               <Settings2 className="size-5 text-cyan-100" />
               <p className="text-sm font-semibold text-white">Point System</p>
             </div>
+            {pointSystemMeta ? (
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                Last updated {new Date(pointSystemMeta.updatedAt).toLocaleString()}
+                {pointSystemMeta.updatedByUsername ? ` by ${pointSystemMeta.updatedByUsername}` : ""}
+              </p>
+            ) : null}
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Input onChange={(event) => setKillPointValue(Number(event.target.value) || 0)} type="number" value={killPointValue} />

@@ -28,6 +28,8 @@ export interface AuthRepository {
     updatedAt: string;
     username: string;
   }): Promise<ManagedUserRecord>;
+  deleteUser(userId: string): Promise<ManagedUserRecord | null>;
+  updateUserPassword(userId: string, passwordHash: string, updatedAt: string): Promise<ManagedUserRecord | null>;
   updateUserStatus(userId: string, isActive: boolean, updatedAt: string): Promise<ManagedUserRecord | null>;
 }
 

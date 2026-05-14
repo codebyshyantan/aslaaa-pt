@@ -136,6 +136,7 @@ async function exportWorkbook(isAdmin: boolean) {
     const standings = mergeStandings(collections, pointSystem);
 
     return standings.map((entry) => ({
+      "Chicken Dinners": entry.chickenDinners,
       Kills: entry.kills,
       Matches: entry.matchesPlayed,
       Merge: preset.name,

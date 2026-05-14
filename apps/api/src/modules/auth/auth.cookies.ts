@@ -1,19 +1,19 @@
 import type { CookieOptions, Response } from "express";
 
 import type { AppEnv } from "../../config/env.js";
+import { resolveSessionCookieSecurity } from "./auth.runtime.js";
 
-function buildCookieBaseOptions(env: Pick<AppEnv, "COOKIE_SECURE">): CookieOptions {
+function buildCookieBaseOptions(env: Pick<AppEnv, "COOKIE_SECURE" | "NODE_ENV">): CookieOptions {
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "lax",
-    secure: env.COOKIE_SECURE,
+    ...resolveSessionCookieSecurity(env),
   };
 }
 
 export function writeSessionCookie(
   response: Response,
-  env: Pick<AppEnv, "COOKIE_SECURE" | "SESSION_COOKIE_NAME">,
+  env: Pick<AppEnv, "COOKIE_SECURE" | "NODE_ENV" | "SESSION_COOKIE_NAME">,
   token: string,
   expiresAt: string,
 ) {
@@ -25,7 +25,7 @@ export function writeSessionCookie(
 
 export function clearSessionCookie(
   response: Response,
-  env: Pick<AppEnv, "COOKIE_SECURE" | "SESSION_COOKIE_NAME">,
+  env: Pick<AppEnv, "COOKIE_SECURE" | "NODE_ENV" | "SESSION_COOKIE_NAME">,
 ) {
   response.clearCookie(env.SESSION_COOKIE_NAME, buildCookieBaseOptions(env));
 }

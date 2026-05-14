@@ -11,9 +11,11 @@ import { ApiClientError } from "@/lib/http-client";
 
 import {
   createMergePreset,
+  deleteMergePreset,
   fetchMergePresetStandings,
   fetchScrimsState,
   previewMerge,
+  renameMergePreset,
   type MergePreviewResponse,
   type ScrimsState,
 } from "@/features/scrims/api/scrims-client";
@@ -146,6 +148,49 @@ export function MergesPage() {
       setStatusMessage(`Merge preset ${preset.name} saved.`);
       await loadState();
       await handleLoadPreset(preset.id);
+    } catch (nextError) {
+      setError(formatMergeError(nextError));
+    }
+  }
+
+  async function handleRenamePreset(presetId: string, currentName: string) {
+    const nextName = window.prompt("Rename merge preset", currentName);
+
+    if (!nextName?.trim()) {
+      return;
+    }
+
+    setError(null);
+    setStatusMessage(null);
+
+    try {
+      const preset = await renameMergePreset(presetId, nextName.trim());
+      setStatusMessage(`Merge preset renamed to ${preset.name}.`);
+      await loadState();
+      await handleLoadPreset(preset.id);
+    } catch (nextError) {
+      setError(formatMergeError(nextError));
+    }
+  }
+
+  async function handleDeletePreset(presetId: string, presetName: string) {
+    const confirmed = window.confirm(
+      `Delete merge preset ${presetName}? This may also remove linked auto-merge configs and archived snapshots that depend on the preset.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setError(null);
+    setStatusMessage(null);
+
+    try {
+      await deleteMergePreset(presetId);
+      setPreview(null);
+      setSelectedLobbyIds([]);
+      setStatusMessage(`Merge preset ${presetName} deleted.`);
+      await loadState();
     } catch (nextError) {
       setError(formatMergeError(nextError));
     }
@@ -304,18 +349,29 @@ export function MergesPage() {
             {selectedScrimPresets.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {selectedScrimPresets.map((preset) => (
-                  <button
-                    className={
-                      preset.isFavorite
-                        ? "rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100"
-                        : "rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300"
-                    }
-                    key={preset.id}
-                    onClick={() => void handleLoadPreset(preset.id)}
-                    type="button"
-                  >
-                    {preset.name}
-                  </button>
+                  <div className="flex items-center gap-2" key={preset.id}>
+                    <button
+                      className={
+                        preset.isFavorite
+                          ? "rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100"
+                          : "rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300"
+                      }
+                      onClick={() => void handleLoadPreset(preset.id)}
+                      type="button"
+                    >
+                      {preset.name}
+                    </button>
+                    {isAdmin ? (
+                      <>
+                        <Button className="sm:w-auto" onClick={() => void handleRenamePreset(preset.id, preset.name)} variant="secondary">
+                          Rename
+                        </Button>
+                        <Button className="sm:w-auto" onClick={() => void handleDeletePreset(preset.id, preset.name)} variant="secondary">
+                          Delete
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
                 ))}
               </div>
             ) : null}

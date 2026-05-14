@@ -19,7 +19,11 @@ import { AchievementsService } from "./modules/achievements/achievements.service
 import { createAuthController } from "./modules/auth/auth.controller.js";
 import { createAuthMiddleware } from "./modules/auth/auth.middleware.js";
 import { createAuthRouter } from "./modules/auth/auth.routes.js";
+import { resolveAuthCorsOptions } from "./modules/auth/auth.runtime.js";
 import { AuthService } from "./modules/auth/auth.service.js";
+import { createLeaderboardsController } from "./modules/leaderboards/leaderboards.controller.js";
+import { createLeaderboardsRouter } from "./modules/leaderboards/leaderboards.routes.js";
+import { LeaderboardsService } from "./modules/leaderboards/leaderboards.service.js";
 import { createAutomationController } from "./modules/automation/automation.controller.js";
 import { createAutomationRouter } from "./modules/automation/automation.routes.js";
 import { AutomationService } from "./modules/automation/automation.service.js";
@@ -63,6 +67,10 @@ export async function createApp(overrides: Partial<AppDependencies> = {}) {
     repository: repositories.automation,
     scrimsRepository: repositories.scrims,
   });
+  const leaderboardsService = LeaderboardsService.create({
+    automationRepository: repositories.automation,
+    scrimsRepository: repositories.scrims,
+  });
   const suggestionsService = SuggestionsService.create({ repository: repositories.suggestions });
   const teamsService = TeamsService.create({
     recordActivity: (input) => repositories.activity.create(input),
@@ -74,6 +82,7 @@ export async function createApp(overrides: Partial<AppDependencies> = {}) {
   const authController = createAuthController({ authService, env: activeEnv });
   const authMiddleware = createAuthMiddleware({ authService, env: activeEnv });
   const automationController = createAutomationController({ service: automationService });
+  const leaderboardsController = createLeaderboardsController({ service: leaderboardsService });
   const scrimsController = createScrimsController({ service: scrimsService });
   const suggestionsController = createSuggestionsController({ service: suggestionsService });
   const teamsController = createTeamsController({ service: teamsService });
@@ -90,10 +99,7 @@ export async function createApp(overrides: Partial<AppDependencies> = {}) {
     next();
   });
   app.use(
-    cors({
-      origin: activeEnv.CORS_ORIGIN,
-      credentials: true,
-    }),
+    cors(resolveAuthCorsOptions(activeEnv)),
   );
   app.use(helmet());
   app.use(cookieParser());
@@ -154,6 +160,13 @@ export async function createApp(overrides: Partial<AppDependencies> = {}) {
     "/api/auto-merge",
     createAutomationRouter({
       controller: automationController,
+      middleware: authMiddleware,
+    }),
+  );
+  app.use(
+    "/api/leaderboards",
+    createLeaderboardsRouter({
+      controller: leaderboardsController,
       middleware: authMiddleware,
     }),
   );

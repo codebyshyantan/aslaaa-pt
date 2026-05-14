@@ -220,6 +220,66 @@ export class MemoryAuthRepository implements AuthRepository {
     };
   }
 
+  async deleteUser(userId: string): Promise<ManagedUserRecord | null> {
+    const user = this.usersById.get(userId);
+
+    if (!user) {
+      return null;
+    }
+
+    this.usersById.delete(userId);
+    this.usersByUsername.delete(user.username.toLowerCase());
+
+    for (const [sessionId, session] of this.sessionsById.entries()) {
+      if (session.userId !== userId) {
+        continue;
+      }
+
+      this.sessionsById.delete(sessionId);
+      this.sessionsByTokenHash.delete(session.refreshTokenHash);
+    }
+
+    return {
+      createdAt: user.createdAt,
+      id: user.id,
+      isActive: user.isActive,
+      lastLoginAt: user.lastLoginAt,
+      role: user.role,
+      updatedAt: user.updatedAt,
+      username: user.username,
+    };
+  }
+
+  async updateUserPassword(userId: string, passwordHash: string, updatedAt: string): Promise<ManagedUserRecord | null> {
+    const user = this.usersById.get(userId);
+
+    if (!user) {
+      return null;
+    }
+
+    user.passwordHash = passwordHash;
+    user.updatedAt = updatedAt;
+
+    for (const [sessionId, session] of this.sessionsById.entries()) {
+      if (session.userId !== userId) {
+        continue;
+      }
+
+      this.sessionsById.delete(sessionId);
+      this.sessionsByTokenHash.delete(session.refreshTokenHash);
+    }
+
+    return {
+      createdAt: user.createdAt,
+      id: user.id,
+      isActive: user.isActive,
+      lastLoginAt: user.lastLoginAt,
+      role: user.role,
+      updatedAt: user.updatedAt,
+      username: user.username,
+    };
+  }
+
   async updateUserStatus(userId: string, isActive: boolean, updatedAt: string): Promise<ManagedUserRecord | null> {
     const user = this.usersById.get(userId);
 

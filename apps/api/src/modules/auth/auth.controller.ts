@@ -9,7 +9,7 @@ import type { LoginRequestBody } from "./auth.validation.js";
 
 type AuthControllerDependencies = {
   authService: AuthService;
-  env: Pick<AppEnv, "COOKIE_SECURE" | "SESSION_COOKIE_NAME">;
+  env: Pick<AppEnv, "COOKIE_SECURE" | "NODE_ENV" | "SESSION_COOKIE_NAME">;
 };
 
 function setNoStore(response: Response) {

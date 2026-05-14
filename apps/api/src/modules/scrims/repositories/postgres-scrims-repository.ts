@@ -1,7 +1,7 @@
 import type { Sql } from "postgres";
 
 import type { MergeSourceCollection } from "../../../contracts/competition-contract.js";
-import type { ScrimsRepository } from "../scrims.repository.js";
+import { LobbyStateConflictError, type ScrimsRepository } from "../scrims.repository.js";
 import type {
   CreateGroupInput,
   CreateLobbyInput,
@@ -51,6 +51,8 @@ type LobbyRow = {
   created_at: Date | string;
   group_id: string;
   id: string;
+  last_updated_by_user_id: string | null;
+  last_updated_by_username: string | null;
   name: string;
   sort_order: number;
   updated_at: Date | string;
@@ -124,6 +126,8 @@ function mapLobbyRow(row: LobbyRow): LobbyRecord {
     createdAt: toIsoString(row.created_at),
     groupId: row.group_id,
     id: row.id,
+    lastUpdatedByUserId: row.last_updated_by_user_id,
+    lastUpdatedByUsername: row.last_updated_by_username,
     name: row.name,
     sortOrder: row.sort_order,
     updatedAt: toIsoString(row.updated_at),
@@ -210,7 +214,7 @@ export class PostgresScrimsRepository implements ScrimsRepository {
     const [row] = await this.sql<LobbyRow[]>`
       insert into lobbies (group_id, name, sort_order, created_at, updated_at)
       values (${input.groupId}, ${input.name}, ${input.sortOrder}, ${input.createdAt}, ${input.updatedAt})
-      returning id, group_id, name, sort_order, created_at, updated_at
+      returning id, group_id, name, sort_order, last_updated_by_user_id, last_updated_by_username, created_at, updated_at
     `;
 
     if (!row) {
@@ -293,6 +297,73 @@ export class PostgresScrimsRepository implements ScrimsRepository {
     return mapTierRow(row);
   }
 
+  async deleteGroup(id: string) {
+    const [row] = await this.sql<GroupRow[]>`
+      delete from scrim_groups
+      where id = ${id}
+      returning id, tier_id, name, sort_order, created_at, updated_at
+    `;
+
+    return row ? mapGroupRow(row) : null;
+  }
+
+  async deleteLobby(id: string) {
+    const [row] = await this.sql<LobbyRow[]>`
+      delete from lobbies
+      where id = ${id}
+      returning id, group_id, name, sort_order, last_updated_by_user_id, last_updated_by_username, created_at, updated_at
+    `;
+
+    return row ? mapLobbyRow(row) : null;
+  }
+
+  async deleteMergePreset(id: string) {
+    const [row] = await this.sql<MergePresetRow[]>`
+      with deleted_preset as (
+        delete from merge_presets
+        where id = ${id}
+        returning id, scrim_id, name, is_favorite, created_at, updated_at
+      )
+      select
+        dp.id,
+        dp.scrim_id,
+        dp.name,
+        dp.is_favorite,
+        dp.created_at,
+        dp.updated_at,
+        coalesce(
+          array_agg(mpl.lobby_id order by mpl.lobby_id) filter (where mpl.lobby_id is not null),
+          array[]::uuid[]
+        )::text[] as lobby_ids
+      from deleted_preset dp
+      left join merge_preset_lobbies mpl on mpl.preset_id = dp.id
+      group by dp.id
+      limit 1
+    `;
+
+    return row ? mapMergePresetRow(row) : null;
+  }
+
+  async deleteScrim(id: string) {
+    const [row] = await this.sql<ScrimRow[]>`
+      delete from scrims
+      where id = ${id}
+      returning id, name, slug, description, is_active, created_at, updated_at
+    `;
+
+    return row ? mapScrimRow(row) : null;
+  }
+
+  async deleteTier(id: string) {
+    const [row] = await this.sql<TierRow[]>`
+      delete from scrim_tiers
+      where id = ${id}
+      returning id, scrim_id, name, sort_order, created_at, updated_at
+    `;
+
+    return row ? mapTierRow(row) : null;
+  }
+
   async findGroupById(id: string) {
     const [row] = await this.sql<GroupRow[]>`
       select id, tier_id, name, sort_order, created_at, updated_at
@@ -306,7 +377,7 @@ export class PostgresScrimsRepository implements ScrimsRepository {
 
   async findLobbyById(id: string) {
     const [row] = await this.sql<LobbyRow[]>`
-      select id, group_id, name, sort_order, created_at, updated_at
+      select id, group_id, name, sort_order, last_updated_by_user_id, last_updated_by_username, created_at, updated_at
       from lobbies
       where id = ${id}
       limit 1
@@ -438,7 +509,7 @@ export class PostgresScrimsRepository implements ScrimsRepository {
         order by sort_order asc, name asc
       `,
       this.sql<LobbyRow[]>`
-        select id, group_id, name, sort_order, created_at, updated_at
+        select id, group_id, name, sort_order, last_updated_by_user_id, last_updated_by_username, created_at, updated_at
         from lobbies
         order by sort_order asc, name asc
       `,
@@ -478,6 +549,24 @@ export class PostgresScrimsRepository implements ScrimsRepository {
 
   async replaceLobbyEntries(input: ReplaceLobbyEntriesInput) {
     return this.sql.begin(async (transaction) => {
+      const [lockedLobbyRow] = await transaction<LobbyRow[]>`
+        select id, group_id, name, sort_order, last_updated_by_user_id, last_updated_by_username, created_at, updated_at
+        from lobbies
+        where id = ${input.lobbyId}
+        limit 1
+        for update
+      `;
+
+      if (!lockedLobbyRow) {
+        throw new Error("Lobby not found during update.");
+      }
+
+      const lockedLobby = mapLobbyRow(lockedLobbyRow);
+
+      if (input.expectedUpdatedAt && lockedLobby.updatedAt !== input.expectedUpdatedAt) {
+        throw new LobbyStateConflictError(lockedLobby, input.expectedUpdatedAt);
+      }
+
       await transaction`
         delete from lobby_entries
         where lobby_id = ${input.lobbyId}
@@ -521,7 +610,96 @@ export class PostgresScrimsRepository implements ScrimsRepository {
         }
       }
 
-      return rows;
+      const [updatedLobbyRow] = await transaction<LobbyRow[]>`
+        update lobbies
+        set
+          updated_at = ${input.nextUpdatedAt},
+          last_updated_by_user_id = ${input.lastUpdatedByUserId},
+          last_updated_by_username = ${input.lastUpdatedByUsername}
+        where id = ${input.lobbyId}
+        returning id, group_id, name, sort_order, last_updated_by_user_id, last_updated_by_username, created_at, updated_at
+      `;
+
+      if (!updatedLobbyRow) {
+        throw new Error("Failed to update lobby metadata.");
+      }
+
+      return {
+        entries: rows,
+        lobby: mapLobbyRow(updatedLobbyRow),
+      };
     });
+  }
+
+  async updateGroupName(id: string, name: string, updatedAt: string) {
+    const [row] = await this.sql<GroupRow[]>`
+      update scrim_groups
+      set name = ${name}, updated_at = ${updatedAt}
+      where id = ${id}
+      returning id, tier_id, name, sort_order, created_at, updated_at
+    `;
+
+    return row ? mapGroupRow(row) : null;
+  }
+
+  async updateLobbyName(id: string, name: string, updatedAt: string) {
+    const [row] = await this.sql<LobbyRow[]>`
+      update lobbies
+      set name = ${name}, updated_at = ${updatedAt}
+      where id = ${id}
+      returning id, group_id, name, sort_order, last_updated_by_user_id, last_updated_by_username, created_at, updated_at
+    `;
+
+    return row ? mapLobbyRow(row) : null;
+  }
+
+  async updateMergePresetName(id: string, name: string, updatedAt: string) {
+    const [row] = await this.sql<MergePresetRow[]>`
+      with updated_preset as (
+        update merge_presets
+        set name = ${name}, updated_at = ${updatedAt}
+        where id = ${id}
+        returning id, scrim_id, name, is_favorite, created_at, updated_at
+      )
+      select
+        up.id,
+        up.scrim_id,
+        up.name,
+        up.is_favorite,
+        up.created_at,
+        up.updated_at,
+        coalesce(
+          array_agg(mpl.lobby_id order by mpl.lobby_id) filter (where mpl.lobby_id is not null),
+          array[]::uuid[]
+        )::text[] as lobby_ids
+      from updated_preset up
+      left join merge_preset_lobbies mpl on mpl.preset_id = up.id
+      group by up.id
+      limit 1
+    `;
+
+    return row ? mapMergePresetRow(row) : null;
+  }
+
+  async updateScrim(id: string, name: string, slug: string, updatedAt: string) {
+    const [row] = await this.sql<ScrimRow[]>`
+      update scrims
+      set name = ${name}, slug = ${slug}, updated_at = ${updatedAt}
+      where id = ${id}
+      returning id, name, slug, description, is_active, created_at, updated_at
+    `;
+
+    return row ? mapScrimRow(row) : null;
+  }
+
+  async updateTierName(id: string, name: string, updatedAt: string) {
+    const [row] = await this.sql<TierRow[]>`
+      update scrim_tiers
+      set name = ${name}, updated_at = ${updatedAt}
+      where id = ${id}
+      returning id, scrim_id, name, sort_order, created_at, updated_at
+    `;
+
+    return row ? mapTierRow(row) : null;
   }
 }

@@ -13,6 +13,7 @@ NODE_ENV=development
 PORT=4000
 APP_ORIGIN=http://localhost:5173
 CORS_ORIGIN=http://localhost:5173
+CORS_ORIGINS=http://localhost:5173
 DATA_STORAGE_DRIVER=memory
 AUTH_STORAGE_DRIVER=memory
 SESSION_COOKIE_NAME=aslaaa_pt_session
@@ -28,10 +29,11 @@ MEMORY_SEED_PT_PASSWORD=Pt@123
 
 - `DATA_STORAGE_DRIVER`: `memory` or `postgres`
 - `AUTH_STORAGE_DRIVER`: kept aligned with `DATA_STORAGE_DRIVER`
+- `CORS_ORIGINS`: optional comma-separated allowlist for multiple frontend origins
 - `SESSION_TTL_HOURS`: cookie/session lifetime
 - `AUTH_RATE_LIMIT_WINDOW_MS`: login rate-limit window
 - `AUTH_RATE_LIMIT_MAX`: login attempts allowed per username/IP window
-- `COOKIE_SECURE`: set `true` behind HTTPS
+- `COOKIE_SECURE`: set `true` behind HTTPS. In `production`, the API now forces `secure=true` and `sameSite=none` for session cookies.
 
 ## Frontend
 

@@ -36,6 +36,8 @@ export interface LobbyRecord {
   createdAt: string;
   groupId: string;
   id: string;
+  lastUpdatedByUserId: string | null;
+  lastUpdatedByUsername: string | null;
   name: string;
   sortOrder: number;
   updatedAt: string;
@@ -143,7 +145,11 @@ export interface CreateMergePresetInput {
 
 export interface ReplaceLobbyEntriesInput {
   entries: CreateLobbyEntryInput[];
+  expectedUpdatedAt: string | null;
+  lastUpdatedByUserId: string | null;
+  lastUpdatedByUsername: string | null;
   lobbyId: string;
+  nextUpdatedAt: string;
 }
 
 export interface MergeSourceCollectionsResult {

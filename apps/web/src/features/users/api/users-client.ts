@@ -35,3 +35,16 @@ export function updateUserStatus(id: string, isActive: boolean) {
     method: "PATCH",
   });
 }
+
+export function resetUserPassword(id: string, password: string) {
+  return apiRequest<ManagedUserRecord>(`/users/${id}/password`, {
+    body: JSON.stringify({ password }),
+    method: "PATCH",
+  });
+}
+
+export function deleteUser(id: string) {
+  return apiRequest<ManagedUserRecord>(`/users/${id}`, {
+    method: "DELETE",
+  });
+}

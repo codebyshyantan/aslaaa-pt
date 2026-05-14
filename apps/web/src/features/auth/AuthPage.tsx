@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
 
+import { AppFooter } from "@/components/layout/AppFooter";
 import { getDefaultProtectedRoute } from "@/features/app/route-catalog";
 
 import { useAuth } from "./hooks/useAuth";
@@ -26,6 +27,9 @@ export function AuthPage() {
         <div className="order-2 lg:order-1">
           <BrandPanel />
         </div>
+      </div>
+      <div className="relative mx-auto max-w-7xl">
+        <AppFooter />
       </div>
     </main>
   );

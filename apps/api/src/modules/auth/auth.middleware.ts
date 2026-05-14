@@ -9,7 +9,7 @@ import { clearSessionCookie } from "./auth.cookies.js";
 
 type AuthMiddlewareDependencies = {
   authService: AuthService;
-  env: Pick<AppEnv, "COOKIE_SECURE" | "SESSION_COOKIE_NAME">;
+  env: Pick<AppEnv, "COOKIE_SECURE" | "NODE_ENV" | "SESSION_COOKIE_NAME">;
 };
 
 type RequireAuthOptions = {

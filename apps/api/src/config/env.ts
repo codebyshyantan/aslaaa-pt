@@ -25,6 +25,7 @@ const rawEnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   APP_ORIGIN: z.string().url().default("http://localhost:5173"),
   CORS_ORIGIN: z.string().url().default("http://localhost:5173"),
+  CORS_ORIGINS: z.string().optional(),
   DATABASE_URL: z.string().min(1).optional(),
   DATA_STORAGE_DRIVER: z.enum(["postgres", "memory"]).optional(),
   AUTH_STORAGE_DRIVER: z.enum(["postgres", "memory"]).optional(),
@@ -43,6 +44,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env) {
     PORT: source.PORT,
     APP_ORIGIN: source.APP_ORIGIN,
     CORS_ORIGIN: source.CORS_ORIGIN,
+    CORS_ORIGINS: source.CORS_ORIGINS,
     DATABASE_URL: source.DATABASE_URL,
     DATA_STORAGE_DRIVER: source.DATA_STORAGE_DRIVER,
     AUTH_STORAGE_DRIVER: source.AUTH_STORAGE_DRIVER,
@@ -64,6 +66,23 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env) {
     parsedEnv.data.AUTH_STORAGE_DRIVER ??
     (parsedEnv.data.NODE_ENV === "test" ? "memory" : "postgres");
   const cookieSecure = parsedEnv.data.COOKIE_SECURE ?? parsedEnv.data.NODE_ENV === "production";
+  const corsOrigins = new Set<string>([parsedEnv.data.APP_ORIGIN, parsedEnv.data.CORS_ORIGIN]);
+
+  for (const entry of parsedEnv.data.CORS_ORIGINS?.split(",") ?? []) {
+    const candidate = entry.trim();
+
+    if (!candidate) {
+      continue;
+    }
+
+    const parsedOrigin = z.string().url().safeParse(candidate);
+
+    if (!parsedOrigin.success) {
+      throw new Error(`Invalid URL found in CORS_ORIGINS: ${candidate}`);
+    }
+
+    corsOrigins.add(parsedOrigin.data);
+  }
 
   if (storageDriver === "postgres" && !parsedEnv.data.DATABASE_URL) {
     throw new Error("DATABASE_URL is required when AUTH_STORAGE_DRIVER=postgres.");
@@ -71,9 +90,11 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env) {
 
   return {
     ...parsedEnv.data,
+    ALLOWED_CORS_ORIGINS: [...corsOrigins],
     AUTH_STORAGE_DRIVER: storageDriver,
     DATA_STORAGE_DRIVER: storageDriver,
     COOKIE_SECURE: cookieSecure,
+    CORS_ORIGINS: parsedEnv.data.CORS_ORIGINS ?? null,
     DATABASE_URL: parsedEnv.data.DATABASE_URL ?? null,
   };
 }
@@ -85,6 +106,7 @@ export const env = loadEnv({
   PORT: process.env.PORT,
   APP_ORIGIN: process.env.APP_ORIGIN,
   CORS_ORIGIN: process.env.CORS_ORIGIN,
+  CORS_ORIGINS: process.env.CORS_ORIGINS,
   DATABASE_URL: process.env.DATABASE_URL,
   DATA_STORAGE_DRIVER: process.env.DATA_STORAGE_DRIVER,
   AUTH_STORAGE_DRIVER: process.env.AUTH_STORAGE_DRIVER,

@@ -34,6 +34,8 @@ export interface LobbyRecord {
   createdAt: string;
   groupId: string;
   id: string;
+  lastUpdatedByUserId: string | null;
+  lastUpdatedByUsername: string | null;
   name: string;
   sortOrder: number;
   updatedAt: string;
@@ -104,10 +106,38 @@ export function createScrim(payload: { description: string; name: string }) {
   });
 }
 
+export function renameScrim(id: string, name: string) {
+  return apiRequest<ScrimRecord>(`/scrims/${id}`, {
+    body: JSON.stringify({ name }),
+    method: "PATCH",
+  });
+}
+
+export function deleteScrim(id: string) {
+  return apiRequest<ScrimRecord>(`/scrims/${id}`, {
+    body: JSON.stringify({ confirmCascade: true }),
+    method: "DELETE",
+  });
+}
+
 export function createTier(payload: { name: string; scrimId: string; sortOrder: number }) {
   return apiRequest<TierRecord>("/scrims/tiers", {
     body: JSON.stringify(payload),
     method: "POST",
+  });
+}
+
+export function renameTier(id: string, name: string) {
+  return apiRequest<TierRecord>(`/scrims/tiers/${id}`, {
+    body: JSON.stringify({ name }),
+    method: "PATCH",
+  });
+}
+
+export function deleteTier(id: string) {
+  return apiRequest<TierRecord>(`/scrims/tiers/${id}`, {
+    body: JSON.stringify({ confirmCascade: true }),
+    method: "DELETE",
   });
 }
 
@@ -118,6 +148,20 @@ export function createGroup(payload: { name: string; sortOrder: number; tierId: 
   });
 }
 
+export function renameGroup(id: string, name: string) {
+  return apiRequest<GroupRecord>(`/scrims/groups/${id}`, {
+    body: JSON.stringify({ name }),
+    method: "PATCH",
+  });
+}
+
+export function deleteGroup(id: string) {
+  return apiRequest<GroupRecord>(`/scrims/groups/${id}`, {
+    body: JSON.stringify({ confirmCascade: true }),
+    method: "DELETE",
+  });
+}
+
 export function createLobby(payload: { groupId: string; name: string; sortOrder: number }) {
   return apiRequest<LobbyRecord>("/scrims/lobbies", {
     body: JSON.stringify(payload),
@@ -125,10 +169,29 @@ export function createLobby(payload: { groupId: string; name: string; sortOrder:
   });
 }
 
-export function replaceLobbyEntries(lobbyId: string, entries: EditableLobbyEntryPayload[]) {
-  return apiRequest<{ entries: LobbyEntryRecord[] }>(`/scrims/lobbies/${lobbyId}/entries`, {
+export function renameLobby(id: string, name: string) {
+  return apiRequest<LobbyRecord>(`/scrims/lobbies/${id}`, {
+    body: JSON.stringify({ name }),
+    method: "PATCH",
+  });
+}
+
+export function deleteLobby(id: string) {
+  return apiRequest<LobbyRecord>(`/scrims/lobbies/${id}`, {
+    body: JSON.stringify({ confirmCascade: true }),
+    method: "DELETE",
+  });
+}
+
+export function replaceLobbyEntries(
+  lobbyId: string,
+  entries: EditableLobbyEntryPayload[],
+  expectedUpdatedAt: string | null,
+) {
+  return apiRequest<{ entries: LobbyEntryRecord[]; lobby: LobbyRecord }>(`/scrims/lobbies/${lobbyId}/entries`, {
     body: JSON.stringify({
       entries,
+      expectedUpdatedAt,
     }),
     method: "PUT",
   });
@@ -143,6 +206,20 @@ export function createMergePreset(payload: {
   return apiRequest<MergePresetRecord>("/scrims/merge-presets", {
     body: JSON.stringify(payload),
     method: "POST",
+  });
+}
+
+export function renameMergePreset(id: string, name: string) {
+  return apiRequest<MergePresetRecord>(`/scrims/merge-presets/${id}`, {
+    body: JSON.stringify({ name }),
+    method: "PATCH",
+  });
+}
+
+export function deleteMergePreset(id: string) {
+  return apiRequest<MergePresetRecord>(`/scrims/merge-presets/${id}`, {
+    body: JSON.stringify({ confirmCascade: true }),
+    method: "DELETE",
   });
 }
 

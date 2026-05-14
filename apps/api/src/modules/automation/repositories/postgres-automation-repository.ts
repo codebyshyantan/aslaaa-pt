@@ -1,7 +1,7 @@
 import type { JSONValue, Sql } from "postgres";
 
 import { defaultPointSystemSettings, type PointSystemSettings } from "../../../contracts/competition-contract.js";
-import type { AutomationRepository } from "../automation.repository.js";
+import { PointSystemStateConflictError, type AutomationRepository } from "../automation.repository.js";
 import type {
   AutomationRunRecord,
   AutoMergeConfigRecord,
@@ -9,6 +9,10 @@ import type {
   CreateAutomationRunInput,
   CreateDailySnapshotInput,
   DailySnapshotRecord,
+  FeaturedLeaderboardConfigRecord,
+  PointSystemSettingsRecord,
+  UpdateFeaturedLeaderboardConfigInput,
+  UpdatePointSystemSettingsInput,
 } from "../automation.types.js";
 
 type AutoMergeConfigRow = {
@@ -46,6 +50,8 @@ type AutomationRunRow = {
 type SystemSettingsRow = {
   key: string;
   updated_at: Date | string;
+  updated_by_user_id: string | null;
+  updated_by_username: string | null;
   value_json: Record<string, unknown>;
 };
 
@@ -105,6 +111,46 @@ function normalizePointSystemSettings(value: Record<string, unknown> | null | un
   return {
     killPointValue,
     positionPoints: positionPoints.length > 0 ? positionPoints : defaultPointSystemSettings.positionPoints,
+  };
+}
+
+function mapPointSystemSettingsRow(row: SystemSettingsRow | null | undefined): PointSystemSettingsRecord {
+  const normalized = normalizePointSystemSettings(row?.value_json);
+
+  return {
+    ...normalized,
+    updatedAt: row ? toIsoString(row.updated_at) ?? new Date().toISOString() : new Date(0).toISOString(),
+    updatedByUserId: row?.updated_by_user_id ?? null,
+    updatedByUsername: row?.updated_by_username ?? null,
+  };
+}
+
+function mapFeaturedLeaderboardConfigRow(
+  row: SystemSettingsRow | null | undefined,
+): FeaturedLeaderboardConfigRecord | null {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    mergeId: typeof row.value_json.mergeId === "string" ? row.value_json.mergeId : null,
+    scrimId: typeof row.value_json.scrimId === "string" ? row.value_json.scrimId : null,
+    sortBy:
+      row.value_json.sortBy === "chickenDinners" ||
+      row.value_json.sortBy === "kills" ||
+      row.value_json.sortBy === "matchesPlayed" ||
+      row.value_json.sortBy === "totalPoints"
+        ? row.value_json.sortBy
+        : "totalPoints",
+    tierId: typeof row.value_json.tierId === "string" ? row.value_json.tierId : null,
+    title:
+      typeof row.value_json.title === "string" && row.value_json.title.trim().length > 0
+        ? row.value_json.title.trim()
+        : "Featured Weekly Leaderboard",
+    updatedAt: toIsoString(row.updated_at) ?? new Date().toISOString(),
+    updatedByUserId: row.updated_by_user_id,
+    updatedByUsername: row.updated_by_username,
+    week: typeof row.value_json.week === "string" ? row.value_json.week : null,
   };
 }
 
@@ -195,15 +241,26 @@ export class PostgresAutomationRepository implements AutomationRepository {
     return row ? mapAutoMergeConfigRow(row) : null;
   }
 
+  async getFeaturedLeaderboardConfig() {
+    const [row] = await this.sql<SystemSettingsRow[]>`
+      select key, value_json, updated_at, updated_by_user_id, updated_by_username
+      from system_settings
+      where key = 'featured-weekly-leaderboard'
+      limit 1
+    `;
+
+    return mapFeaturedLeaderboardConfigRow(row);
+  }
+
   async getPointSystemSettings() {
     const [row] = await this.sql<SystemSettingsRow[]>`
-      select key, value_json, updated_at
+      select key, value_json, updated_at, updated_by_user_id, updated_by_username
       from system_settings
       where key = 'point-system'
       limit 1
     `;
 
-    return normalizePointSystemSettings(row?.value_json);
+    return mapPointSystemSettingsRow(row);
   }
 
   async listAutoMergeConfigs() {
@@ -236,25 +293,83 @@ export class PostgresAutomationRepository implements AutomationRepository {
     return rows.map(mapDailySnapshotRow);
   }
 
-  async updatePointSystemSettings(input: PointSystemSettings) {
+  async updateFeaturedLeaderboardConfig(input: UpdateFeaturedLeaderboardConfigInput) {
+    const [row] = await this.sql<SystemSettingsRow[]>`
+      insert into system_settings (key, value_json, updated_at, updated_by_user_id, updated_by_username)
+      values (
+        'featured-weekly-leaderboard',
+        ${this.sql.json(
+          {
+            mergeId: input.mergeId,
+            scrimId: input.scrimId,
+            sortBy: input.sortBy,
+            tierId: input.tierId,
+            title: input.title,
+            week: input.week,
+          } as unknown as JSONValue,
+        )},
+        ${input.updatedAt},
+        ${input.updatedByUserId},
+        ${input.updatedByUsername}
+      )
+      on conflict (key)
+      do update set
+        value_json = excluded.value_json,
+        updated_at = excluded.updated_at,
+        updated_by_user_id = excluded.updated_by_user_id,
+        updated_by_username = excluded.updated_by_username
+      returning key, value_json, updated_at, updated_by_user_id, updated_by_username
+    `;
+
+    const config = mapFeaturedLeaderboardConfigRow(row);
+
+    if (!config) {
+      throw new Error("Failed to update featured leaderboard configuration.");
+    }
+
+    return config;
+  }
+
+  async updatePointSystemSettings(input: UpdatePointSystemSettingsInput) {
     const normalized = normalizePointSystemSettings({
       killPointValue: input.killPointValue,
       positionPoints: input.positionPoints,
     });
 
-    await this.sql`
-      insert into system_settings (key, value_json, updated_at)
-      values (
-        'point-system',
-        ${this.sql.json(normalized as unknown as JSONValue)},
-        timezone('utc', now())
-      )
-      on conflict (key)
-      do update set
-        value_json = excluded.value_json,
-        updated_at = excluded.updated_at
-    `;
+    return this.sql.begin(async (transaction) => {
+      const [currentRow] = await transaction<SystemSettingsRow[]>`
+        select key, value_json, updated_at, updated_by_user_id, updated_by_username
+        from system_settings
+        where key = 'point-system'
+        limit 1
+        for update
+      `;
 
-    return normalized;
+      const currentSettings = mapPointSystemSettingsRow(currentRow);
+
+      if (input.expectedUpdatedAt && currentSettings.updatedAt !== input.expectedUpdatedAt) {
+        throw new PointSystemStateConflictError(currentSettings, input.expectedUpdatedAt);
+      }
+
+      const [updatedRow] = await transaction<SystemSettingsRow[]>`
+        insert into system_settings (key, value_json, updated_at, updated_by_user_id, updated_by_username)
+        values (
+          'point-system',
+          ${this.sql.json(normalized as unknown as JSONValue)},
+          ${input.updatedAt},
+          ${input.updatedByUserId},
+          ${input.updatedByUsername}
+        )
+        on conflict (key)
+        do update set
+          value_json = excluded.value_json,
+          updated_at = excluded.updated_at,
+          updated_by_user_id = excluded.updated_by_user_id,
+          updated_by_username = excluded.updated_by_username
+        returning key, value_json, updated_at, updated_by_user_id, updated_by_username
+      `;
+
+      return mapPointSystemSettingsRow(updatedRow);
+    });
   }
 }

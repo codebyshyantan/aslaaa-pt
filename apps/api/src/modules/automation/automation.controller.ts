@@ -99,7 +99,7 @@ export function createAutomationController({ service }: AutomationControllerDepe
 
       response.status(200).json({
         success: true,
-        data: await service.updatePointSystemSettings(payload),
+        data: await service.updatePointSystemSettings(request.auth!, payload),
       });
     },
   };

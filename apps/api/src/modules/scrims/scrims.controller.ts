@@ -8,13 +8,25 @@ import type {
   CreateMergePresetBody,
   CreateScrimBody,
   CreateTierBody,
+  DeleteConfirmationBody,
   MergePreviewBody,
+  RenameMergePresetBody,
+  RenameScrimBody,
+  RenameStructureEntityBody,
   ReplaceLobbyEntriesBody,
 } from "./scrims.validation.js";
 
 type ScrimsControllerDependencies = {
   service: ScrimsService;
 };
+
+function getRequiredRouteId(value: string | string[] | undefined, code: string, message: string) {
+  if (!value || Array.isArray(value)) {
+    throw new ApiError(400, code, message);
+  }
+
+  return value;
+}
 
 export function createScrimsController({ service }: ScrimsControllerDependencies) {
   return {
@@ -68,6 +80,55 @@ export function createScrimsController({ service }: ScrimsControllerDependencies
       });
     },
 
+    deleteGroup: async (request: Request, response: Response) => {
+      const id = getRequiredRouteId(request.params.id, "INVALID_GROUP_ID", "Group id is required.");
+
+      response.status(200).json({
+        success: true,
+        data: await service.deleteGroup(request.auth!, id, request.body as DeleteConfirmationBody),
+      });
+    },
+
+    deleteLobby: async (request: Request, response: Response) => {
+      const id = getRequiredRouteId(request.params.id, "INVALID_LOBBY_ID", "Lobby id is required.");
+
+      response.status(200).json({
+        success: true,
+        data: await service.deleteLobby(request.auth!, id, request.body as DeleteConfirmationBody),
+      });
+    },
+
+    deleteMergePreset: async (request: Request, response: Response) => {
+      const id = getRequiredRouteId(
+        request.params.id,
+        "INVALID_MERGE_PRESET_ID",
+        "Merge preset id is required.",
+      );
+
+      response.status(200).json({
+        success: true,
+        data: await service.deleteMergePreset(request.auth!, id, request.body as DeleteConfirmationBody),
+      });
+    },
+
+    deleteScrim: async (request: Request, response: Response) => {
+      const id = getRequiredRouteId(request.params.id, "INVALID_SCRIM_ID", "Scrim id is required.");
+
+      response.status(200).json({
+        success: true,
+        data: await service.deleteScrim(request.auth!, id, request.body as DeleteConfirmationBody),
+      });
+    },
+
+    deleteTier: async (request: Request, response: Response) => {
+      const id = getRequiredRouteId(request.params.id, "INVALID_TIER_ID", "Tier id is required.");
+
+      response.status(200).json({
+        success: true,
+        data: await service.deleteTier(request.auth!, id, request.body as DeleteConfirmationBody),
+      });
+    },
+
     getMergePresetStandings: async (request: Request, response: Response) => {
       const presetId = request.params.id;
 
@@ -97,6 +158,55 @@ export function createScrimsController({ service }: ScrimsControllerDependencies
       });
     },
 
+    renameGroup: async (request: Request, response: Response) => {
+      const id = getRequiredRouteId(request.params.id, "INVALID_GROUP_ID", "Group id is required.");
+
+      response.status(200).json({
+        success: true,
+        data: await service.renameGroup(request.auth!, id, request.body as RenameStructureEntityBody),
+      });
+    },
+
+    renameLobby: async (request: Request, response: Response) => {
+      const id = getRequiredRouteId(request.params.id, "INVALID_LOBBY_ID", "Lobby id is required.");
+
+      response.status(200).json({
+        success: true,
+        data: await service.renameLobby(request.auth!, id, request.body as RenameStructureEntityBody),
+      });
+    },
+
+    renameMergePreset: async (request: Request, response: Response) => {
+      const id = getRequiredRouteId(
+        request.params.id,
+        "INVALID_MERGE_PRESET_ID",
+        "Merge preset id is required.",
+      );
+
+      response.status(200).json({
+        success: true,
+        data: await service.renameMergePreset(request.auth!, id, request.body as RenameMergePresetBody),
+      });
+    },
+
+    renameScrim: async (request: Request, response: Response) => {
+      const id = getRequiredRouteId(request.params.id, "INVALID_SCRIM_ID", "Scrim id is required.");
+
+      response.status(200).json({
+        success: true,
+        data: await service.renameScrim(request.auth!, id, request.body as RenameScrimBody),
+      });
+    },
+
+    renameTier: async (request: Request, response: Response) => {
+      const id = getRequiredRouteId(request.params.id, "INVALID_TIER_ID", "Tier id is required.");
+
+      response.status(200).json({
+        success: true,
+        data: await service.renameTier(request.auth!, id, request.body as RenameStructureEntityBody),
+      });
+    },
+
     replaceLobbyEntries: async (request: Request, response: Response) => {
       const lobbyId = request.params.id;
 
@@ -105,12 +215,13 @@ export function createScrimsController({ service }: ScrimsControllerDependencies
       }
 
       const payload = request.body as ReplaceLobbyEntriesBody;
-      const entries = await service.replaceLobbyEntries(request.auth!, lobbyId, payload);
+      const savedState = await service.replaceLobbyEntries(request.auth!, lobbyId, payload);
 
       response.status(200).json({
         success: true,
         data: {
-          entries,
+          entries: savedState.entries,
+          lobby: savedState.lobby,
         },
       });
     },

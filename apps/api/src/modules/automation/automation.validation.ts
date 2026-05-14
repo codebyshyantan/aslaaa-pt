@@ -16,6 +16,7 @@ export const createDailySnapshotSchema = z.object({
 });
 
 export const updatePointSystemSchema = z.object({
+  expectedUpdatedAt: z.string().datetime().nullable().optional().default(null),
   killPointValue: z.coerce.number().int().min(0).max(10),
   positionPoints: z.array(z.coerce.number().int().min(0).max(50)).min(1).max(64),
 });
